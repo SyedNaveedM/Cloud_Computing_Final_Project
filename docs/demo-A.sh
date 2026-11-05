@@ -4,8 +4,9 @@
 # Start the controller first, with no Docker and no real workers needed:
 #   mvn -pl controller spring-boot:run -Dspring-boot.run.profiles=fake
 #
-# Then run this script against it:
+# Then run this script against it, optionally naming your own file to upload:
 #   bash docs/demo-A.sh
+#   bash docs/demo-A.sh /path/to/your/file.pdf
 #
 # Covers:
 #   1. Store/retrieve an object with matching SHA-256 (end to end integrity)
@@ -15,19 +16,33 @@
 
 set -euo pipefail
 
-BASE_URL="${BASE_URL:-http://localhost:8080}"
+BASE_URL="${BASE_URL:-http://localhost:8081}"
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
 
-echo "== Preparing a ~2.5 MB test file (forces multiple chunks) =="
-dd if=/dev/urandom of="$WORKDIR/original.bin" bs=1024 count=2560 status=none
-ORIGINAL_SHA256=$(sha256sum "$WORKDIR/original.bin" | awk '{print $1}')
+SOURCE_FILE="${1:-}"
+
+if [ -n "$SOURCE_FILE" ]; then
+  if [ ! -f "$SOURCE_FILE" ]; then
+    echo "No such file: $SOURCE_FILE" >&2
+    exit 1
+  fi
+  echo "== Using your file: $SOURCE_FILE =="
+  ORIGINAL_FILE="$SOURCE_FILE"
+else
+  echo "== No file given, generating a ~2.5 MB random test file (forces multiple chunks) =="
+  echo "   (pass a path to use your own: bash docs/demo-A.sh /path/to/file)"
+  dd if=/dev/urandom of="$WORKDIR/original.bin" bs=1024 count=2560 status=none
+  ORIGINAL_FILE="$WORKDIR/original.bin"
+fi
+
+ORIGINAL_SHA256=$(sha256sum "$ORIGINAL_FILE" | awk '{print $1}')
 echo "original sha256: $ORIGINAL_SHA256"
 
 echo
 echo "== 1 & 2 & 3: Upload (store, chunk, replicate) =="
 UPLOAD_RESPONSE=$(curl -sS -X POST "$BASE_URL/api/v1/objects" \
-  -F "file=@$WORKDIR/original.bin;type=application/octet-stream" \
+  -F "file=@$ORIGINAL_FILE" \
   -F 'metadata={"owner":"demoA","purpose":"cloud-demo"}')
 echo "$UPLOAD_RESPONSE"
 OBJECT_ID=$(echo "$UPLOAD_RESPONSE" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
