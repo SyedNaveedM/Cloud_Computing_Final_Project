@@ -2,6 +2,7 @@ package com.example.controller.web;
 
 import com.example.common.ChecksumUtil;
 import com.example.controller.domain.WorkerStatus;
+import com.example.controller.repository.StoredObjectRepository;
 import com.example.controller.repository.WorkerRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +36,8 @@ class ObjectApiIntegrationTest {
     private MockMvc mockMvc;
     @Autowired
     private WorkerRepository workerRepository;
+    @Autowired
+    private StoredObjectRepository objectRepository;
     @Autowired
     private ObjectMapper objectMapper;
 
@@ -92,11 +95,16 @@ class ObjectApiIntegrationTest {
 
         mockMvc.perform(multipart("/api/v1/objects").file(empty))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400));
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.message").exists())
+                .andExpect(jsonPath("$.path").value("/api/v1/objects"));
     }
 
     @Test
     void uploadReturns503WhenFewerThanTwoWorkersAreAlive() throws Exception {
+        long objectsBefore = objectRepository.count();
         workerRepository.findAll().forEach(worker -> {
             worker.setStatus(WorkerStatus.DEAD);
             workerRepository.save(worker);
@@ -105,7 +113,9 @@ class ObjectApiIntegrationTest {
             MockMultipartFile file = new MockMultipartFile("file", "f.bin", "application/octet-stream", randomBytes(10));
             mockMvc.perform(multipart("/api/v1/objects").file(file))
                     .andExpect(status().isServiceUnavailable())
-                    .andExpect(jsonPath("$.status").value(503));
+                    .andExpect(jsonPath("$.status").value(503))
+                    .andExpect(jsonPath("$.error").value("Service Unavailable"));
+            assertEquals(objectsBefore, objectRepository.count());
         } finally {
             workerRepository.findAll().forEach(worker -> {
                 worker.setStatus(WorkerStatus.ALIVE);

@@ -65,7 +65,10 @@ class UploadServiceTest {
     }
 
     @Test
-    void uploadFailsFastWhenFewerThanTwoWorkersAreAlive() {
+    void uploadFailsFastWhenFewerThanTwoWorkersAreAliveAndLeavesNothingBehind() {
+        long objectsBefore = objectRepository.count();
+        long chunksBefore = chunkRepository.count();
+
         workerRepository.findAll().forEach(worker -> {
             worker.setStatus(WorkerStatus.DEAD);
             workerRepository.save(worker);
@@ -80,6 +83,9 @@ class UploadServiceTest {
                 workerRepository.save(worker);
             });
         }
+
+        assertEquals(objectsBefore, objectRepository.count());
+        assertEquals(chunksBefore, chunkRepository.count());
     }
 
     private byte[] randomBytes(int size) {
