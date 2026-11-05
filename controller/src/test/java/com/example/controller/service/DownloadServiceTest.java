@@ -79,10 +79,17 @@ class DownloadServiceTest {
         Replica corrupted = replicas.get(0);
         inMemoryWorkerClient.corruptChunk(corrupted.getWorkerId(), chunk.getChunkId());
 
-        byte[] fetched = downloadService.fetchVerified(chunk);
-        assertEquals(ChecksumUtil.sha256(data), ChecksumUtil.sha256(fetched));
-
-        Replica reloaded = replicaRepository.findById(corrupted.getId()).orElseThrow();
+        // fetchVerified shuffles replica order, so the corrupted one isn't guaranteed to be
+        // tried on the very first call; repeat until it has been (or fail after a generous cap).
+        Replica reloaded = null;
+        for (int attempt = 0; attempt < 50; attempt++) {
+            byte[] fetched = downloadService.fetchVerified(chunk);
+            assertEquals(ChecksumUtil.sha256(data), ChecksumUtil.sha256(fetched));
+            reloaded = replicaRepository.findById(corrupted.getId()).orElseThrow();
+            if (reloaded.getState() == ReplicaState.CORRUPT) {
+                break;
+            }
+        }
         assertEquals(ReplicaState.CORRUPT, reloaded.getState());
     }
 

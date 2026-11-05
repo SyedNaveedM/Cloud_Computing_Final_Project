@@ -23,6 +23,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -166,6 +167,7 @@ public class UploadService {
      * the object's rows, used both when an in-progress upload cannot complete and by the
      * startup cleanup of stale UPLOADING objects left behind by a crash.
      */
+    @Transactional
     public void rollbackUpload(String objectId) {
         List<Chunk> chunks = chunkRepository.findByObjectIdOrderByChunkIndex(objectId);
         for (Chunk chunk : chunks) {
