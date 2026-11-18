@@ -1,9 +1,10 @@
 # Controller API
 
 Client-facing REST API for the Mini Distributed Cloud Object Store. The Controller is the
-only thing a client talks to directly (`/api/v1/...`); it never exposes worker locations.
+only service a client needs to contact (`/api/v1/...`). Metadata includes replica worker
+IDs for inspection; clients do not need to contact workers to upload or download objects.
 
-Base URL in local/dev runs: `http://localhost:8080`
+Base URL in local/dev runs: `http://localhost:8081`
 
 All responses are JSON unless otherwise noted. All error responses share this shape:
 
@@ -24,11 +25,11 @@ All responses are JSON unless otherwise noted. All error responses share this sh
 | 200 | OK | successful GET/PATCH |
 | 201 | Created | upload succeeded |
 | 204 | No Content | delete succeeded |
-| 400 | Bad Request | empty/missing file, malformed metadata JSON, non-object PATCH body |
+| 400 | Bad Request | empty/missing file, malformed metadata JSON, non-object PATCH body, invalid pagination |
 | 404 | Not Found | object/chunk does not exist, or object is not COMPLETE |
 | 409 | Conflict | PATCH metadata while the object is DELETING |
 | 500 | Internal Server Error | unexpected failure |
-| 503 | Service Unavailable | fewer than 2 ALIVE workers, replication/read failed on every replica |
+| 503 | Service Unavailable | fewer than 2 ALIVE workers, replication/read failed on every replica, physical deletion still pending |
 
 ---
 
@@ -42,7 +43,7 @@ Multipart form fields:
 | `metadata` | no | A JSON **string** of custom key/value pairs, e.g. `{"owner":"alice"}`. |
 
 ```bash
-curl -i -X POST http://localhost:8080/api/v1/objects \
+curl -i -X POST http://localhost:8081/api/v1/objects \
   -F "file=@/path/to/photo.jpg" \
   -F 'metadata={"owner":"alice","project":"demo"}'
 ```
@@ -65,15 +66,16 @@ curl -i -X POST http://localhost:8080/api/v1/objects \
 ```
 
 Errors: `400` (missing/empty file, malformed `metadata` JSON), `503` (fewer than 2 ALIVE
-workers, or a chunk could not be replicated to 2 workers — nothing is left behind in either
-case).
+workers, or a chunk could not be replicated to 2 workers). Failed uploads are not published.
+Recorded worker copies are queued for cleanup; physical deletion may finish later if a
+worker is unavailable.
 
 ---
 
 ## `GET /api/v1/objects/{id}` — Download an object
 
 ```bash
-curl -i http://localhost:8080/api/v1/objects/2f6f2c8e-2222-4b3e-9b2a-1111aaaa2222 \
+curl -i http://localhost:8081/api/v1/objects/2f6f2c8e-2222-4b3e-9b2a-1111aaaa2222 \
   -o photo.jpg
 ```
 
@@ -88,7 +90,7 @@ ALIVE worker — checked before any bytes are sent).
 ## `GET /api/v1/objects/{id}/metadata` — Inspect an object
 
 ```bash
-curl -s http://localhost:8080/api/v1/objects/2f6f2c8e-2222-4b3e-9b2a-1111aaaa2222/metadata
+curl -s http://localhost:8081/api/v1/objects/2f6f2c8e-2222-4b3e-9b2a-1111aaaa2222/metadata
 ```
 
 **200 OK**
@@ -140,7 +142,7 @@ Body is a flat JSON object merged into `customMetadata`. **A `null` value remove
 any other value sets it. Chunks are never touched and no re-upload is needed.
 
 ```bash
-curl -i -X PATCH http://localhost:8080/api/v1/objects/2f6f2c8e-2222-4b3e-9b2a-1111aaaa2222/metadata \
+curl -i -X PATCH http://localhost:8081/api/v1/objects/2f6f2c8e-2222-4b3e-9b2a-1111aaaa2222/metadata \
   -H "Content-Type: application/json" \
   -d '{"owner": null, "status": "reviewed"}'
 ```
@@ -156,8 +158,12 @@ Errors: `400` (body is not a JSON object), `404` (unknown object), `409` (object
 
 Only `COMPLETE` objects are listed.
 
+`page` defaults to `0` and must be a nonnegative integer. `size` defaults to `20` and
+must be a positive integer. Non-integer values and values outside the supported integer
+range return `400 Bad Request` with the same JSON error structure used by other endpoints.
+
 ```bash
-curl -s "http://localhost:8080/api/v1/objects?page=0&size=20"
+curl -s "http://localhost:8081/api/v1/objects?page=0&size=20"
 ```
 
 **200 OK**
@@ -178,11 +184,26 @@ curl -s "http://localhost:8080/api/v1/objects?page=0&size=20"
 ## `DELETE /api/v1/objects/{id}` — Delete an object
 
 ```bash
-curl -i -X DELETE http://localhost:8080/api/v1/objects/2f6f2c8e-2222-4b3e-9b2a-1111aaaa2222
+curl -i -X DELETE http://localhost:8081/api/v1/objects/2f6f2c8e-2222-4b3e-9b2a-1111aaaa2222
 ```
 
-**204 No Content** on success. The object is marked `DELETING`, its chunks are deleted from
-every replica on an **ALIVE** worker (best-effort — a DEAD worker is skipped and its orphaned
-chunks are cleaned up later by the registration/reconcile logic), then all rows are removed.
+**204 No Content** after deletion completes. The object is marked `DELETING`, hidden from
+downloads and listing, and cleanup jobs are persisted for recorded replicas and possible
+copies tracked by write intents. Metadata is removed after all queued deletions are
+acknowledged.
 
-Errors: `404` (unknown object, or already deleted).
+If cleanup cannot finish during the request, return **503 Service Unavailable**. Background
+cleanup retries, including when an offline worker returns. Metadata GET exposes the
+`DELETING` state while cleanup is pending. A later DELETE can return 204 if it completes
+the remaining work, or 404 if background cleanup has already finished.
+
+A 503 response here means deletion has started but is not physically confirmed everywhere.
+The object stays unavailable; it does not become downloadable again on a retry or controller
+restart. Retrying the same DELETE preserves completed work and the remaining jobs' backoff.
+Each request attempts up to 100 due jobs for this object; the background runner also handles
+larger deletions. Retries back off from 5 seconds to a maximum of 300 seconds, so completion
+after a worker returns may take several minutes. No re-upload or further DELETE request is
+needed for background completion. This requires maintenance enabled and the controller's
+persistent database retained, as configured in `compose.yaml`.
+
+Errors: `404` (unknown object, or already deleted), `503` (physical deletion pending).

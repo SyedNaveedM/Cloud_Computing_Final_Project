@@ -11,6 +11,7 @@ import com.example.controller.web.dto.ChunkInfoResponse;
 import com.example.controller.web.dto.ObjectMetadataResponse;
 import com.example.controller.web.dto.ReplicaInfo;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -43,8 +44,10 @@ public class MetadataService {
      * Merges {@code patch} into the object's customMetadata: a null value removes that key,
      * any other value sets it. No chunk data is touched, only modifiedAt and the metadata map.
      */
+    @Transactional
     public ObjectMetadataResponse patchMetadata(String objectId, Map<String, String> patch) {
-        StoredObject object = getObjectOrThrow(objectId);
+        StoredObject object = objectRepository.findByIdForUpdate(objectId)
+                .orElseThrow(() -> new ObjectNotFoundException(objectId));
         if (object.getStatus() == ObjectStatus.DELETING) {
             throw new ObjectConflictException("Object " + objectId + " is being deleted");
         }

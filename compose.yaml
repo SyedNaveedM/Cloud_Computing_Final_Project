@@ -1,0 +1,91 @@
+name: mini-object-store
+
+x-worker: &worker
+  image: mini-object-store-worker:local
+  build:
+    context: .
+    args:
+      MODULE: worker
+  restart: unless-stopped
+  depends_on:
+    - controller
+
+x-worker-env: &worker-env
+  SERVER_PORT: "8082"
+  WORKER_STORAGE_DIR: /data/chunks
+  WORKER_CONTROLLER_URL: http://controller:8081
+  WORKER_HEARTBEAT_DELAY_MS: "5000"
+
+services:
+  controller:
+    container_name: controller
+    image: mini-object-store-controller:local
+    build:
+      context: .
+      args:
+        MODULE: controller
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: "8081"
+      SPRING_DATASOURCE_URL: jdbc:h2:file:/data/objectstore
+      OBJECTSTORE_MAINTENANCE_ENABLED: "true"
+      SPRING_H2_CONSOLE_ENABLED: "false"
+    ports:
+      - "127.0.0.1:8081:8081"
+    volumes:
+      - controller-data:/data
+
+  worker1:
+    <<: *worker
+    container_name: worker1
+    environment:
+      <<: *worker-env
+      WORKER_ID: worker1
+      WORKER_ADVERTISED_URL: http://worker1:8082
+    ports:
+      - "127.0.0.1:8082:8082"
+    volumes:
+      - worker1-data:/data
+
+  worker2:
+    <<: *worker
+    container_name: worker2
+    environment:
+      <<: *worker-env
+      WORKER_ID: worker2
+      WORKER_ADVERTISED_URL: http://worker2:8082
+    ports:
+      - "127.0.0.1:8083:8082"
+    volumes:
+      - worker2-data:/data
+
+  worker3:
+    <<: *worker
+    container_name: worker3
+    environment:
+      <<: *worker-env
+      WORKER_ID: worker3
+      WORKER_ADVERTISED_URL: http://worker3:8082
+    ports:
+      - "127.0.0.1:8084:8082"
+    volumes:
+      - worker3-data:/data
+
+  worker4:
+    <<: *worker
+    container_name: worker4
+    environment:
+      <<: *worker-env
+      WORKER_ID: worker4
+      WORKER_ADVERTISED_URL: http://worker4:8082
+    ports:
+      - "127.0.0.1:8085:8082"
+    volumes:
+      - worker4-data:/data
+
+volumes:
+  controller-data:
+  worker1-data:
+  worker2-data:
+  worker3-data:
+  worker4-data:

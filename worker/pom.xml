@@ -13,5 +13,29 @@
     <artifactId>worker</artifactId>
     <packaging>jar</packaging>
     <name>worker</name>
-    <description>Placeholder module owned by Person B (worker node: ChunkStore, worker REST API, scrubber)</description>
+    <description>Persistent worker node: chunk storage, REST API, inventory, integrity checks and controller lifecycle</description>
+    <dependencies>
+    <dependency>
+        <groupId>com.example</groupId>
+        <artifactId>common</artifactId>
+        <version>${project.version}</version>
+    </dependency>
+    <dependency>
+    <groupId>org.junit.jupiter</groupId>
+    <artifactId>junit-jupiter</artifactId>
+    <scope>test</scope>
+</dependency>
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-webmvc</artifactId>
+</dependency>
+</dependencies>
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-maven-plugin</artifactId>
+        </plugin>
+    </plugins>
+</build>
 </project>

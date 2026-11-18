@@ -16,6 +16,7 @@ import java.time.Instant;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+
 public class Worker {
 
     @Id
@@ -23,10 +24,25 @@ public class Worker {
 
     private String url;
     private Instant lastHeartbeat;
-
+    private String registrationToken;
     @Enumerated(EnumType.STRING)
     private WorkerStatus status;
 
     private long usedBytes;
     private int chunkCount;
+    public Worker(
+        String workerId,
+        String url,
+        Instant lastHeartbeat,
+        WorkerStatus status,
+        long usedBytes,
+        int chunkCount) {
+
+    this.workerId = workerId;
+    this.url = url;
+    this.lastHeartbeat = lastHeartbeat;
+    this.status = status;
+    this.usedBytes = usedBytes;
+    this.chunkCount = chunkCount;
+}
 }
