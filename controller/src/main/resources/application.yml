@@ -18,3 +18,7 @@ spring:
 
 server:
   port: 8081
+
+objectstore:
+  maintenance:
+    enabled: ${OBJECTSTORE_MAINTENANCE_ENABLED:false}

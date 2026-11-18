@@ -10,8 +10,17 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 @Entity
+@Table(
+        name = "replica",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_replica_chunk_worker",
+                columnNames = {"chunk_id", "worker_id"}
+        )
+)
 @Getter
 @Setter
 @NoArgsConstructor

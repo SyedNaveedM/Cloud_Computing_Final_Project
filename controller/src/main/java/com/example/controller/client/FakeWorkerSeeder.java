@@ -10,6 +10,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @Component
 @Profile("fake")
@@ -28,11 +29,22 @@ public class FakeWorkerSeeder implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         for (int i = 1; i <= FAKE_WORKER_COUNT; i++) {
             String workerId = "worker" + i;
-            if (workerRepository.existsById(workerId)) {
-                continue;
+
+            Worker worker = workerRepository.findById(workerId)
+                    .orElseGet(() -> new Worker(
+                            workerId,
+                            "http://fake-" + workerId,
+                            Instant.now(),
+                            WorkerStatus.ALIVE,
+                            0L,
+                            0));
+
+            if (worker.getRegistrationToken() == null
+                    || worker.getRegistrationToken().isBlank()) {
+
+                worker.setRegistrationToken(UUID.randomUUID().toString());
+                workerRepository.save(worker);
             }
-            workerRepository.save(new Worker(
-                    workerId, "http://fake-" + workerId, Instant.now(), WorkerStatus.ALIVE, 0L, 0));
         }
     }
 }

@@ -5,6 +5,8 @@ import com.example.controller.domain.WorkerStatus;
 import com.example.controller.repository.StoredObjectRepository;
 import com.example.controller.repository.WorkerRepository;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -129,6 +131,24 @@ class ObjectApiIntegrationTest {
         mockMvc.perform(get("/api/v1/objects/does-not-exist"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "page, abc",
+            "size, abc",
+            "page, 2147483648",
+            "size, 2147483648"
+    })
+    void invalidPaginationReturns400(String parameter, String value) throws Exception {
+        mockMvc.perform(get("/api/v1/objects").param(parameter, value))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message")
+                        .value("Invalid value for request parameter '" + parameter + "'"))
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.path").value("/api/v1/objects"));
     }
 
     private byte[] randomBytes(int size) {

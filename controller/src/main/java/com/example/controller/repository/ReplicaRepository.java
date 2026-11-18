@@ -13,4 +13,5 @@ public interface ReplicaRepository extends JpaRepository<Replica, Long> {
     Optional<Replica> findByChunkIdAndWorkerId(String chunkId, String workerId);
 
     void deleteByChunkId(String chunkId);
+    List<Replica> findByWorkerId(String workerId);
 }
