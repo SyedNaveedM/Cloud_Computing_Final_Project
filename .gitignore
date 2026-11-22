@@ -6,6 +6,7 @@ target/
 
 ### H2 database files (local dev/run data) ###
 data/
+check.txt
 *.mv.db
 *.trace.db
 
