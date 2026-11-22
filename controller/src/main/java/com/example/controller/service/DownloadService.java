@@ -7,6 +7,7 @@ import com.example.controller.exception.*;
 import com.example.controller.repository.*;
 import com.example.controller.service.RegistrationChunkVerifier.Result;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -14,6 +15,7 @@ import java.util.*;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DownloadService {
     private final StoredObjectRepository objectRepository;
     private final ChunkRepository chunkRepository;
@@ -60,7 +62,10 @@ public class DownloadService {
             try {
                 byte[] data = workerClient.getChunk(worker, chunk.getChunkId());
                 if (data != null && data.length == chunk.getSize()
-                        && ChecksumUtil.sha256(data).equalsIgnoreCase(chunk.getChecksum())) return data;
+                        && ChecksumUtil.sha256(data).equalsIgnoreCase(chunk.getChecksum())) {
+                    log.info("Served chunk {} from worker {}", chunk.getChunkId(), worker.getWorkerId());
+                    return data;
+                }
                 maintenance.observe(chunk, worker, Result.CORRUPT);
             } catch (ChunkNotFoundException error) {
                 maintenance.observe(chunk, worker, Result.MISSING);
